@@ -4,11 +4,6 @@
 #include "VkIbWindow.h"
 //#include <ignimbrite/RenderDevice.h>
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-
 #include <tiny_obj_loader.h>
 #include <stb_image.h>
 
@@ -79,7 +74,7 @@ public:
     }
 
     void drawFrame() {
-        updateScene();
+        //updateScene();
         RenderDevice::Region area = { 0, 0, { window.width, window.height} };
         RenderDevice::Color clearColor = { { 1.0f, 1.0f, 1.0f, 0.0f} };
 
@@ -137,6 +132,83 @@ public:
 
         qDebug("Mesh loaded");
         meshMutex.unlock();
+    }
+
+    void loadObjModel(const char *path) {
+        std::vector<Vertex> outVertices;
+        std::vector<uint32> outIndices;
+
+        tinyobj::attrib_t attrib;
+        std::vector<tinyobj::shape_t> shapes;
+        std::vector<tinyobj::material_t> materials;
+        std::string warn, err;
+
+        bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path);
+
+        if (!loaded) {
+            throw std::runtime_error(std::string("Can't load .obj mesh at: ") + path);
+        }
+
+        bool useUv = !attrib.texcoords.empty();
+
+        uint32 i = 0;
+        for (const auto& shape : shapes)
+        {
+            for (const auto& index : shape.mesh.indices)
+            {
+                Vertex vertex = {};
+
+                vertex.Position[0] = attrib.vertices[3 * index.vertex_index + 0];
+                vertex.Position[1] = attrib.vertices[3 * index.vertex_index + 1];
+                vertex.Position[2] = attrib.vertices[3 * index.vertex_index + 2];
+                vertex.Position[3] = 1.0f;
+
+                if (!attrib.normals.empty())
+                {
+                    vertex.Normal[0] = attrib.normals[3 * index.normal_index + 0];
+                    vertex.Normal[1] = attrib.normals[3 * index.normal_index + 1];
+                    vertex.Normal[2] = attrib.normals[3 * index.normal_index + 2];
+                }
+                else
+                {
+                    vertex.Normal[0] = 0.0f;
+                    vertex.Normal[1] = 1.0f;
+                    vertex.Normal[2] = 0.0f;
+                }
+
+                if (useUv) {
+                    vertex.UV[0] = attrib.texcoords[2 * index.texcoord_index + 0];
+                    vertex.UV[1] = 1.0f - attrib.texcoords[2 * index.texcoord_index + 1];
+                }
+
+                vertex.Color[0] = 1.0f;
+                vertex.Color[1] = 1.0f;
+                vertex.Color[2] = 1.0f;
+                vertex.Color[3] = 1.0f;
+
+                outVertices.push_back(vertex);
+                outIndices.push_back(i++);
+            }
+        }
+
+        loadMesh(outVertices.data(), outVertices.size(), outIndices.data(), outIndices.size());
+    }
+
+    void updateMvp(float *mvpMat44, float *modelMat44) {
+
+        material.data.lightDir[0] = -1;
+        material.data.lightDir[1] = 1;
+        material.data.lightDir[2] = -0.5f;
+        material.data.ambient[0] = 0.1f;
+        material.data.ambient[1] = 0.1f;
+        material.data.ambient[2] = 0.1f;
+
+        for (uint32 i = 0; i < 16; i++) {
+            material.data.mvp[i] = mvpMat44[i];
+            material.data.model[i] = modelMat44[i];
+        }
+
+        pDevice->updateUniformBuffer(material.uniformBuffer, sizeof(ShaderUniformBuffer), 0, &material.data);
     }
 
     void releaseResources() override {
@@ -207,67 +279,6 @@ private:
         vertexBufferLayoutDesc.usage = VertexUsage::PerVertex;
 
         mesh.vertexLayout = pDevice->createVertexLayout({ vertexBufferLayoutDesc });
-    }
-
-public:
-    void loadObjModel(const char *path) {
-        std::vector<Vertex> outVertices;
-        std::vector<uint32> outIndices;
-
-        tinyobj::attrib_t attrib;
-        std::vector<tinyobj::shape_t> shapes;
-        std::vector<tinyobj::material_t> materials;
-        std::string warn, err;
-
-        bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path);
-
-        if (!loaded) {
-            throw std::runtime_error(std::string("Can't load .obj mesh at: ") + path);
-        }
-
-        bool useUv = !attrib.texcoords.empty();
-
-        uint32 i = 0;
-        for (const auto& shape : shapes)
-        {
-            for (const auto& index : shape.mesh.indices)
-            {
-                Vertex vertex = {};
-
-                vertex.Position[0] = attrib.vertices[3 * index.vertex_index + 0];
-                vertex.Position[1] = attrib.vertices[3 * index.vertex_index + 1];
-                vertex.Position[2] = attrib.vertices[3 * index.vertex_index + 2];
-                vertex.Position[3] = 1.0f;
-
-                if (!attrib.normals.empty())
-                {
-                    vertex.Normal[0] = attrib.normals[3 * index.normal_index + 0];
-                    vertex.Normal[1] = attrib.normals[3 * index.normal_index + 1];
-                    vertex.Normal[2] = attrib.normals[3 * index.normal_index + 2];
-                }
-                else
-                {
-                    vertex.Normal[0] = 0.0f;
-                    vertex.Normal[1] = 1.0f;
-                    vertex.Normal[2] = 0.0f;
-                }
-
-                if (useUv) {
-                    vertex.UV[0] = attrib.texcoords[2 * index.texcoord_index + 0];
-                    vertex.UV[1] = 1.0f - attrib.texcoords[2 * index.texcoord_index + 1];
-                }
-
-                vertex.Color[0] = 1.0f;
-                vertex.Color[1] = 1.0f;
-                vertex.Color[2] = 1.0f;
-                vertex.Color[3] = 1.0f;
-
-                outVertices.push_back(vertex);
-                outIndices.push_back(i++);
-            }
-        }
-
-        loadMesh(outVertices.data(), outVertices.size(), outIndices.data(), outIndices.size());
     }
 
 private:
@@ -421,58 +432,10 @@ private:
         );
     }
 
-    void updateScene() {
-        yaw += 0.05f;
-
-        calculateMvp(window.width, window.height, fov, pitch, yaw, z,
-                material.data.mvp, material.data.model);
-
-        material.data.lightDir[0] = -1;
-        material.data.lightDir[1] = 1;
-        material.data.lightDir[2] = -0.5f;
-        material.data.ambient[0] = 0.1f;
-        material.data.ambient[1] = 0.1f;
-        material.data.ambient[2] = 0.1f;
-
-        pDevice->updateUniformBuffer(material.uniformBuffer, sizeof(ShaderUniformBuffer), 0, &material.data);
-    }
-
-    static void calculateMvp(float viewWidth, float viewHeight,
-                             float fovDegrees, float apitch, float ayaw, float cz,
-                             float *outMat4, float *outModelMat4) {
-        auto projection = glm::perspective(fovDegrees, viewWidth / viewHeight, 0.1f, 100.0f);
-
-        auto view = glm::lookAt(
-                glm::vec3(0, 0, cz),
-                glm::vec3(0, 0, 0),
-                glm::vec3(0, 1, 0)
-        );
-
-        auto model = glm::mat4(1.0f);
-        model = glm::rotate(model, apitch, glm::vec3(1, 0, 0));
-        model = glm::rotate(model, ayaw, glm::vec3(0, 1, 0));
-
-        auto clip = glm::mat4(1.0f, 0.0f, 0.0f, 0.0f,
-                              0.0f, -1.0f, 0.0f, 0.0f,
-                              0.0f, 0.0f, 0.5f, 0.0f,
-                              0.0f, 0.0f, 0.5f, 1.0f);
-
-        auto mvp = clip * projection * view * model;
-
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 4; j++) {
-                outMat4[i * 4 + j] = mvp[i][j];
-                outModelMat4[i * 4 + j] = model[i][j];
-            }
-        }
-    }
-
-
-
 private:
     const char          *name = "Textured 3D model";
 
-    RenderDevice  *pDevice = nullptr;
+    RenderDevice        *pDevice = nullptr;
 
     Window              window;
     ID                  surface;
@@ -483,21 +446,7 @@ private:
     std::string         texturePath;
 
     std::mutex          meshMutex;
-
-    static float pitch;
-    static float yaw;
-    static float fov;
-    static float z;
-    static float prevx;
-    static float prevy;
 };
-
-float Vulkan3DTest::pitch = 0;
-float Vulkan3DTest::yaw = 0;
-float Vulkan3DTest::fov = 70;
-float Vulkan3DTest::z = -80;
-float Vulkan3DTest::prevx = 0;
-float Vulkan3DTest::prevy = 0;
 
 
 #endif // VK3DRENDERER_H

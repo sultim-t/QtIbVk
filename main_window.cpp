@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     uint32 width = 1024;
     uint32 height = 768;
 
-    VkIbWindow *vulkanWindow = new VkIbWindow();
+    auto *vulkanWindow = new TrackableVkIbWindow();
     vulkanWindow->resize(width, height);
 
     MainVkWindow mainWindow(vulkanWindow);
@@ -46,6 +46,7 @@ int main(int argc, char *argv[])
     vulkanWindow->setVkIbApp(&application);
 
     mainWindow.setMeshLoadingFunction([&application](const char *path){application.loadObjModel(path);});
+    mainWindow.setMvpUpdateFunction([&application](float *mvp, float *model){application.updateMvp(mvp, model);});
 
     return app.exec();
 }

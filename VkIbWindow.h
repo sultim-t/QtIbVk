@@ -30,14 +30,6 @@ public:
 
     void initSurface();
 
-//    void setDrawFunc(std::function<void()> func) {
-//        drawFunc = func;
-//    }
-
-//    void setAppDestroyFunc(std::function<void()> func) {
-//        appDestroyFunc = func;
-//    }
-
     void setVkIbApp(IVkIbApp *app);
 
     ignimbrite::ObjectID getSurfaceId();
@@ -65,8 +57,6 @@ private:
     QVulkanInstance *qvkInstance;
 
     IVkIbApp *vkIbApp;
-    //std::function<void()> drawFunc;
-    //std::function<void()> appDestroyFunc;
 };
 
 
